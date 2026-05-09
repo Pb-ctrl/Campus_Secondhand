@@ -5,7 +5,6 @@
 ![MyBatis-Plus](https://img.shields.io/badge/MyBatis--Plus-3.5.7-red.svg)
 ![AI](https://img.shields.io/badge/AI-DeepSeek-purple.svg)
 
-##  [github地址](https://github.com/Pb-ctrl/Campus_Secondhand)
 
 ## 📖 项目简介
 
