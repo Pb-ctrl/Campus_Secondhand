@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="description" content="校园闲置智能交易平台 - 发现优质二手商品">
+    <title>校园闲置智能交易平台 - 发现大厅</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}" href="/css/style.css">
+</head>
+<body>
+<!-- 动态背景图 -->
+<div class="background-wrapper"></div>
+
+<!-- 顶部导航栏 (毛玻璃) -->
+<header class="glass-header">
+    <div class="logo"> 校园智交平台</div>
+    <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="搜索二手书、数码、寻物启事...">
+        <button onclick="searchItems()">搜索</button>
+    </div>
+    <div class="user-action">
+        <button class="btn-publish" onclick="showPublishModal()">发布闲置</button>
+        <div class="notification-icon" id="notificationIcon" onclick="showNotifications()" style="position: relative; margin-right: 1rem; cursor: pointer; font-size: 1.5rem;">
+            🔔
+            <span id="unreadBadge" style="display: none; position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 0.7rem; display: flex; align-items: center; justify-content: center;">0</span>
+        </div>
+        <!-- 个人中心入口 -->
+        <button class="btn-user-center" onclick="toggleUserMenu()" title="个人中心">
+            <span class="user-icon"></span>
+            <span class="user-text" id="userText">登录</span>
+            <span class="dropdown-indicator">▼</span>
+        </button>
+    </div>
+</header>
+
+<!-- 页面路径指示器 -->
+<nav class="breadcrumb-nav">
+    <div class="container breadcrumb-container">
+        <span class="breadcrumb-item active" data-page="home" onclick="navigateToPage('home')">
+            <span class="breadcrumb-icon">🏠</span>
+            <span class="breadcrumb-text">首页</span>
+        </span>
+        <span class="breadcrumb-separator">›</span>
+        <span class="breadcrumb-item" data-page="my-items" onclick="navigateToPage('my-items')">
+            <span class="breadcrumb-icon">📦</span>
+            <span class="breadcrumb-text">我的商品</span>
+        </span>
+        <span class="breadcrumb-separator">›</span>
+        <span class="breadcrumb-item" data-page="favorites" onclick="navigateToPage('favorites')">
+            <span class="breadcrumb-icon">❤️</span>
+            <span class="breadcrumb-text">我的收藏</span>
+        </span>
+    </div>
+</nav>
+
+<main class="container">
+    <!-- AI 智能审核说明 -->
+    <section class="ai-info-section" style="margin-bottom: 2rem;">
+        <div class="ai-info-card">
+            <div class="ai-info-header" onclick="toggleAIInfo()">
+                <h3>🤖 AI 智能审核说明</h3>
+                <h4>作者联系方式：<a href="https://github.com/Pb-ctrl" target="_blank">GitHub</a></h4>
+                <span class="ai-info-toggle" id="aiInfoToggle">▼</span>
+            </div>
+            <div class="ai-info-content" id="aiInfoContent" style="display: none;">
+                <div class="ai-score-standards">
+                    <h4>📊 评分标准（满分100分）</h4>
+                    <div class="score-grid">
+                        <div class="score-item">
+                            <div class="score-icon">📝</div>
+                            <div class="score-details">
+                                <h5>标题规范性（权重25%）</h5>
+                                <p>标题长度5-50字，准确描述商品，不包含敏感词汇</p>
+                            </div>
+                        </div>
+                        <div class="score-item">
+                            <div class="score-icon">📖</div>
+                            <div class="score-details">
+                                <h5>描述完整性（权重25%）</h5>
+                                <p>描述长度20-500字，包含商品关键信息（新旧程度、使用时长等）</p>
+                            </div>
+                        </div>
+                        <div class="score-item">
+                            <div class="score-icon">✅</div>
+                            <div class="score-details">
+                                <h5>内容合规性（权重30%）</h5>
+                                <p>不包含违法、违禁、色情、暴力、诈骗等敏感内容</p>
+                            </div>
+                        </div>
+                        <div class="score-item">
+                            <div class="score-icon">💰</div>
+                            <div class="score-details">
+                                <h5>价格合理性（权重10%）</h5>
+                                <p>价格在0-99999元之间，符合市场行情</p>
+                            </div>
+                        </div>
+                        <div class="score-item">
+                            <div class="score-icon"></div>
+                            <div class="score-details">
+                                <h5>信息真实性（权重10%）</h5>
+                                <p>不存在明显虚假信息或误导内容</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="score-levels">
+                        <h4>🎯 审核等级</h4>
+                        <div class="level-item level-approve">
+                            <span class="level-badge">≥80分</span>
+                            <span class="level-text">✅ 建议通过 - 商品信息完整规范，符合发布标准</span>
+                        </div>
+                        <div class="level-item level-review">
+                            <span class="level-badge">50-79分</span>
+                            <span class="level-text">⚠️ 需要人工复审 - 商品信息需要进一步完善</span>
+                        </div>
+                        <div class="level-item level-reject">
+                            <span class="level-badge">&lt;50分</span>
+                            <span class="level-text">❌ 建议拒绝 - 存在违规或不规范内容</span>
+                        </div>
+                    </div>
+
+                    <div class="ai-tips">
+                        <h4>💡 发布建议</h4>
+                        <ul>
+                            <li>标题简明扼要，突出商品特点（如："9成新 iPhone 13 128G"）</li>
+                            <li>描述详细说明商品新旧程度、使用时间、购买渠道等</li>
+                            <li>上传清晰的商品实拍图片</li>
+                            <li>定价合理，可参考市场均价</li>
+                            <li>遵守平台规范，不发布违禁物品</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 分类过滤器 -->
+    <section class="filters">
+        <button class="filter-btn active" data-filter="all">全部推荐</button>
+        <button class="filter-btn" data-filter="books">二手教材</button>
+        <button class="filter-btn" data-filter="digital">数码外设</button>
+        <button class="filter-btn" data-filter="lost">寻物启事</button>
+        <button class="filter-btn" data-filter="other">其他</button>
+    </section>
+
+    <!-- 商品/信息卡片网格 -->
+    <section class="item-grid" id="itemGrid">
+        <!-- 商品卡片将通过JavaScript动态加载 -->
+    </section>
+
+    <!-- 空状态提示 -->
+    <div id="emptyState" style="display: none; text-align: center; padding: 3rem; color: #6b7280;">
+        <p style="font-size: 1.2rem;">暂无商品信息</p>
+    </div>
+</main>
+
+<!-- 登录模态框 -->
+<div id="loginModal" class="modal">
+    <div class="modal-content glass-card">
+        <span class="close" onclick="closeLoginModal()">&times;</span>
+        <h2>用户登录</h2>
+        <form id="loginForm">
+            <div class="form-group">
+                <label>用户名：</label>
+                <input type="text" id="loginUsername" required>
+            </div>
+            <div class="form-group">
+                <label>密码：</label>
+                <input type="password" id="loginPassword" required>
+            </div>
+            <button type="submit" class="btn-submit">登录</button>
+        </form>
+        <p class="switch-form">还没有账号？<a href="#" onclick="showRegisterModal()">立即注册</a></p>
+    </div>
+</div>
+
+<!-- 注册模态框 -->
+<div id="registerModal" class="modal">
+    <div class="modal-content glass-card">
+        <span class="close" onclick="closeRegisterModal()">&times;</span>
+        <h2>用户注册</h2>
+        <form id="registerForm">
+            <div class="form-group">
+                <label>用户名：</label>
+                <input type="text" id="registerUsername" required>
+            </div>
+            <div class="form-group">
+                <label>密码：</label>
+                <input type="password" id="registerPassword" required>
+            </div>
+            <div class="form-group">
+                <label>邮箱：</label>
+                <input type="email" id="registerEmail">
+            </div>
+            <div class="form-group">
+                <label>手机号：</label>
+                <input type="tel" id="registerPhone">
+            </div>
+            <button type="submit" class="btn-submit">注册</button>
+        </form>
+        <p class="switch-form">已有账号？<a href="#" onclick="showLoginModal()">立即登录</a></p>
+    </div>
+</div>
+
+<!-- 发布商品模态框 -->
+<div id="publishModal" class="modal">
+    <div class="modal-content glass-card">
+        <span class="close" onclick="closePublishModal()">&times;</span>
+        <h2>发布闲置</h2>
+        <form id="publishForm" enctype="multipart/form-data">
+            <div class="form-group">
+                <label>标题：</label>
+                <input type="text" id="itemTitle" required>
+            </div>
+            <div class="form-group">
+                <label>描述：</label>
+                <textarea id="itemDescription" rows="4"></textarea>
+            </div>
+            <div class="form-group">
+                <label>价格：</label>
+                <input type="number" id="itemPrice" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label>数量：</label>
+                <input type="number" id="itemQuantity" min="1" value="1" required>
+            </div>
+            <div class="form-group">
+                <label>分类：</label>
+                <select id="itemCategory">
+                    <option value="1">普通商品</option>
+                    <option value="2">二手教材</option>
+                    <option value="3">数码外设</option>
+                    <option value="4">寻物启事</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>商品图片：</label>
+                <input type="file" id="itemImage" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp">
+                <small style="color: #6b7280; font-size: 0.85rem;">支持 jpg、png、gif、webp 格式，最大5MB</small>
+            </div>
+            <div id="imagePreview" style="margin-top: 10px; display: none;">
+                <img id="previewImg" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: cover;">
+            </div>
+            <button type="submit" class="btn-submit">发布</button>
+        </form>
+    </div>
+</div>
+
+<div id="messageModal" class="modal">
+    <div class="modal-content glass-card">
+        <span class="close" onclick="closeMessageModal()">&times;</span>
+        <h2>商品留言</h2>
+
+        <div id="messageList" style="max-height: 250px; overflow-y: auto; margin-bottom: 1rem; padding: 10px; background: rgba(255,255,255,0.5); border-radius: 8px;">
+        </div>
+
+        <form id="messageForm">
+            <input type="hidden" id="messageItemId">
+            <div class="form-group">
+                <textarea id="messageContent" rows="3" placeholder="对这件物品感兴趣？问问细节..." required></textarea>
+            </div>
+            <button type="submit" class="btn-submit">发送留言</button>
+        </form>
+    </div>
+</div>
+
+<!-- 编辑商品模态框 -->
+<div id="editModal" class="modal">
+    <div class="modal-content glass-card">
+        <span class="close" onclick="closeEditModal()">&times;</span>
+        <h2>编辑商品</h2>
+        <form id="editForm" enctype="multipart/form-data">
+            <input type="hidden" id="editItemId">
+            <div class="form-group">
+                <label>标题：</label>
+                <input type="text" id="editItemTitle" required>
+            </div>
+            <div class="form-group">
+                <label>描述：</label>
+                <textarea id="editItemDescription" rows="4"></textarea>
+            </div>
+            <div class="form-group">
+                <label>价格：</label>
+                <input type="number" id="editItemPrice" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label>数量：</label>
+                <input type="number" id="editItemQuantity" min="1" required>
+            </div>
+            <div class="form-group">
+                <label>分类：</label>
+                <select id="editItemCategory">
+                    <option value="1">普通商品</option>
+                    <option value="2">二手教材</option>
+                    <option value="3">数码外设</option>
+                    <option value="4">寻物启事</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>商品图片：</label>
+                <input type="file" id="editItemImage" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp">
+                <small style="color: #6b7280; font-size: 0.85rem;">支持 jpg、png、gif、webp 格式，最大5MB</small>
+            </div>
+            <div id="editImagePreview" style="margin-top: 10px;">
+                <img id="editPreviewImg" style="max-width: 200px; max-height: 200px; border-radius: 8px; object-fit: cover; display: none;">
+            </div>
+            <button type="submit" class="btn-submit">保存修改</button>
+        </form>
+    </div>
+</div>
+
+<!-- Toast 提示消息 -->
+<div id="toast" class="toast"></div>
+
+<!-- 确认对话框 -->
+<div id="confirmModal" class="modal">
+    <div class="modal-content glass-card confirm-dialog">
+        <h3 id="confirmTitle">确认操作</h3>
+        <p id="confirmMessage">确定要执行此操作吗？</p>
+        <div class="confirm-buttons">
+            <button class="btn-cancel" onclick="closeConfirmModal()">取消</button>
+            <button class="btn-confirm" id="confirmBtn">确定</button>
+        </div>
+    </div>
+</div>
+
+<!-- 商品详情模态框 -->
+<div id="itemDetailModal" class="modal">
+    <div class="modal-content glass-card item-detail-modal">
+        <span class="close" onclick="closeItemDetailModal()">&times;</span>
+        <div id="itemDetailContent">
+            <!-- 商品详情内容将动态加载 -->
+        </div>
+    </div>
+</div>
+
+<!-- 用户下拉菜单 - 简化版，只保留登录/登出 -->
+<div id="userDropdown" class="user-dropdown">
+    <!-- 未登录状态 -->
+    <div id="loginMenuItems">
+        <div class="dropdown-item" onclick="showLoginModal()">
+            <span>🔑</span>
+            <span>用户登录</span>
+        </div>
+        <div class="dropdown-item" onclick="showRegisterModal()">
+            <span>📝</span>
+            <span>用户注册</span>
+        </div>
+    </div>
+
+    <!-- 已登录状态 -->
+    <div id="logoutMenuItems" style="display: none;">
+        <div class="dropdown-divider"></div>
+        <div class="dropdown-item" onclick="logout()">
+            <span>🚪</span>
+            <span>退出登录</span>
+        </div>
+    </div>
+</div>
+
+<!-- 个人中心面板 -->
+<div id="userCenterPanel" class="user-center-panel">
+    <div class="panel-header">
+        <h3> 个人中心</h3>
+        <span class="close-panel" onclick="closeUserCenterPanel()">&times;</span>
+    </div>
+    <div class="panel-content">
+        <div class="panel-item" onclick="showMyItems()">
+            <span class="panel-icon">📦</span>
+            <div class="panel-info">
+                <div class="panel-title">我的商品</div>
+                <div class="panel-desc">管理我发布的商品</div>
+            </div>
+        </div>
+        <div class="panel-item" onclick="showMyFavorites()">
+            <span class="panel-icon">❤️</span>
+            <div class="panel-info">
+                <div class="panel-title">我的收藏</div>
+                <div class="panel-desc">查看收藏的商品</div>
+            </div>
+        </div>
+        <div class="panel-item" onclick="backToHome()">
+            <span class="panel-icon">🏠</span>
+            <div class="panel-info">
+                <div class="panel-title">返回首页</div>
+                <div class="panel-desc">浏览全部商品</div>
+            </div>
+        </div>
+        <div class="panel-item logout-item" onclick="logout()">
+            <span class="panel-icon"></span>
+            <div class="panel-info">
+                <div class="panel-title logout-title">退出登录</div>
+                <div class="panel-desc logout-desc">退出当前账号</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script th:src="@{/js/app.js}" src="/js/app.js"></script>
+</body>
+</html>

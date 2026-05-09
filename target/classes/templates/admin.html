@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校园闲置智能交易平台 - 后台审核</title>
+    <link rel="stylesheet" th:href="@{/css/admin.css}" href="/css/admin.css">
+    <style>
+        /* 登录容器样式 */
+        .admin-login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1000;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .admin-login-box {
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: saturate(180%) blur(30px);
+            -webkit-backdrop-filter: saturate(180%) blur(30px);
+            padding: 3rem;
+            border-radius: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            width: 90%;
+            max-width: 450px;
+            animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 0.5px solid rgba(255, 255, 255, 0.5);
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .admin-login-box h2 {
+            text-align: center;
+            background: linear-gradient(135deg, #007AFF, #5E5CE6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 2rem;
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: -0.021em;
+        }
+
+        .admin-login-box .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .admin-login-box label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #1C1C1E;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .admin-login-box input {
+            width: 100%;
+            padding: 0.9rem 1rem;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+            background: rgba(118, 118, 128, 0.12);
+            outline: none;
+            font-family: inherit;
+            color: #1C1C1E;
+        }
+
+        .admin-login-box input:focus {
+            background: rgba(118, 118, 128, 0.16);
+            box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.15);
+        }
+
+        .admin-login-box .btn-login {
+            width: 100%;
+            padding: 1rem;
+            background: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+        }
+
+        .admin-login-box .btn-login:hover {
+            background: #0051D5;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 122, 255, 0.4);
+        }
+
+        .admin-login-box .btn-login:active {
+            transform: translateY(0) scale(0.98);
+        }
+
+        .admin-login-box .error-message {
+            color: #FF3B30;
+            font-size: 0.9rem;
+            text-align: center;
+            margin-top: 1rem;
+            display: none;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+<!-- 管理员登录界面 -->
+<div id="adminLoginContainer" class="admin-login-container">
+    <div class="admin-login-box">
+        <h2>🔐 管理员登录</h2>
+        <form id="adminLoginForm">
+            <div class="form-group">
+                <label>管理员账号：</label>
+                <input type="text" id="adminUsername" required placeholder="请输入管理员账号">
+            </div>
+            <div class="form-group">
+                <label>管理员密码：</label>
+                <input type="password" id="adminPassword" required placeholder="请输入管理员密码">
+            </div>
+            <button type="submit" class="btn-login">登录后台</button>
+            <div id="loginError" class="error-message"></div>
+        </form>
+    </div>
+</div>
+
+<!-- 后台管理内容 -->
+<div id="adminContent" class="admin-content">
+    <header class="admin-header">
+        <div class="logo">️ 后台管理系统</div>
+        <div class="user-info">
+            <span id="adminName">管理员</span>
+            <button onclick="logoutAdmin()">退出登录</button>
+            <button onclick="backToHome()">返回首页</button>
+        </div>
+    </header>
+
+    <main class="admin-container">
+        <!-- AI审核标准说明 -->
+        <section class="ai-review-standards" style="margin-bottom: 2rem;">
+            <div class="ai-standards-card">
+                <div class="ai-standards-header" onclick="toggleAIStandards()">
+                    <h3>🤖 AI 智能审核标准</h3>
+                    <span class="ai-standards-toggle" id="aiStandardsToggle">▼</span>
+                </div>
+                <div class="ai-standards-content" id="aiStandardsContent" style="display: none;">
+                    <div class="standards-grid">
+                        <div class="standard-item">
+                            <div class="standard-header">
+                                <span class="standard-icon"></span>
+                                <h4>标题规范性（25%）</h4>
+                            </div>
+                            <div class="standard-details">
+                                <ul>
+                                    <li>长度要求：5-50个字符</li>
+                                    <li>必须准确描述商品核心信息</li>
+                                    <li>不得包含夸大、虚假宣传</li>
+                                    <li>禁止使用敏感词汇</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="standard-item">
+                            <div class="standard-header">
+                                <span class="standard-icon">📖</span>
+                                <h4>描述完整性（25%）</h4>
+                            </div>
+                            <div class="standard-details">
+                                <ul>
+                                    <li>长度要求：20-500个字符</li>
+                                    <li>需包含商品新旧程度</li>
+                                    <li>需说明使用时间和状况</li>
+                                    <li>建议提供购买渠道和凭证</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="standard-item">
+                            <div class="standard-header">
+                                <span class="standard-icon">✅</span>
+                                <h4>内容合规性（30%）</h4>
+                            </div>
+                            <div class="standard-details">
+                                <ul>
+                                    <li>禁止违法违禁物品</li>
+                                    <li>禁止色情暴力内容</li>
+                                    <li>禁止诈骗传销信息</li>
+                                    <li>禁止侵权假冒商品</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="standard-item">
+                            <div class="standard-header">
+                                <span class="standard-icon">💰</span>
+                                <h4>价格合理性（10%）</h4>
+                            </div>
+                            <div class="standard-details">
+                                <ul>
+                                    <li>价格范围：0-99999元</li>
+                                    <li>价格不能为负数或零</li>
+                                    <li>价格应符合市场合理范围</li>
+                                    <li>过高或过低价格会被警告</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="standard-item">
+                            <div class="standard-header">
+                                <span class="standard-icon">🔍</span>
+                                <h4>信息真实性（10%）</h4>
+                            </div>
+                            <div class="standard-details">
+                                <ul>
+                                    <li>商品信息必须真实有效</li>
+                                    <li>不得发布虚假广告</li>
+                                    <li>图片需为实物拍摄</li>
+                                    <li>禁止盗用他人图片</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="standards-levels">
+                        <h4>📈 审核等级说明</h4>
+                        <div class="levels-container">
+                            <div class="level-card level-approve-card">
+                                <div class="level-score">≥80分</div>
+                                <div class="level-name">✅ 建议通过</div>
+                                <div class="level-desc">商品信息完整规范，可自动通过审核</div>
+                            </div>
+                            <div class="level-card level-review-card">
+                                <div class="level-score">50-79分</div>
+                                <div class="level-name">️ 需要复审</div>
+                                <div class="level-desc">需要管理员人工审核确认</div>
+                            </div>
+                            <div class="level-card level-reject-card">
+                                <div class="level-score">&lt;50分</div>
+                                <div class="level-name">❌ 建议拒绝</div>
+                                <div class="level-desc">存在违规或不规范内容，建议驳回</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="standards-note">
+                        <h4> 注意事项</h4>
+                        <ul>
+                            <li>AI 审核结果仅供参考，最终审核决定由管理员做出</li>
+                            <li>敏感词库会定期更新，请关注最新规范</li>
+                            <li>对于 borderline 情况，建议结合实际情况判断</li>
+                            <li>批量审核时可先使用 AI 预审，提高效率</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 统计信息 -->
+        <section class="stats">
+            <div class="stat-card">
+                <h3>待审核</h3>
+                <p id="pendingCount">0</p>
+            </div>
+            <div class="stat-card">
+                <h3>已通过</h3>
+                <p id="approvedCount">0</p>
+            </div>
+            <div class="stat-card">
+                <h3>已下架</h3>
+                <p id="rejectedCount">0</p>
+            </div>
+        </section>
+
+        <!-- 审核列表 -->
+        <section class="review-section">
+            <h2>商品审核</h2>
+
+            <!-- 筛选区域 -->
+            <div class="filter-section">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label>📝 关键词搜索：</label>
+                        <input type="text" id="searchKeyword" placeholder="搜索标题或描述..." oninput="applyFilters()">
+                    </div>
+                    <div class="filter-group">
+                        <label>📦 商品分类：</label>
+                        <select id="filterCategory" onchange="applyFilters()">
+                            <option value="all">全部分类</option>
+                            <option value="1">普通商品</option>
+                            <option value="2">二手教材</option>
+                            <option value="3">数码外设</option>
+                            <option value="4">寻物启事</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>📅 排序方式：</label>
+                        <select id="sortBy" onchange="applyFilters()">
+                            <option value="newest">最新发布</option>
+                            <option value="oldest">最早发布</option>
+                            <option value="price-high">价格从高到低</option>
+                            <option value="price-low">价格从低到高</option>
+                        </select>
+                    </div>
+                    <div class="filter-group filter-actions">
+                        <button class="btn-reset" onclick="resetFilters()">🔄 重置筛选</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="filter-tabs">
+                <button class="tab-btn active" data-status="0">待审核</button>
+                <button class="tab-btn" data-status="1">已通过</button>
+                <button class="tab-btn" data-status="2">已下架</button>
+            </div>
+
+            <table class="review-table">
+                <thead>
+                <tr>
+                    <th width="50">
+                        <input type="checkbox" id="selectAll" onchange="toggleSelectAll()" style="cursor: pointer; width: 18px; height: 18px;">
+                    </th>
+                    <th>ID</th>
+                    <th>图片</th>
+                    <th>标题</th>
+                    <th>发布者</th>
+                    <th>分类</th>
+                    <th>描述</th>
+                    <th>发布时间</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                </tr>
+                </thead>
+                <tbody id="reviewTableBody">
+                <!-- 数据将通过JavaScript动态加载 -->
+                </tbody>
+            </table>
+
+            <!-- 批量操作栏 -->
+            <div class="batch-actions" id="batchActions" style="display: none;">
+                <div class="batch-info">
+                    <span id="selectedCount">已选择 0 项</span>
+                </div>
+                <div class="batch-buttons">
+                    <button class="btn-batch btn-batch-approve" onclick="batchApprove()">批量通过</button>
+                    <button class="btn-batch btn-batch-offshelf" onclick="batchOffshelf()">批量下架</button>
+                    <button class="btn-batch btn-batch-restore" onclick="batchRestore()">批量恢复</button>
+                    <button class="btn-batch btn-batch-delete" onclick="batchDelete()">批量删除</button>
+                    <button class="btn-batch" onclick="aiBatchReview()" style="background: #5856D6; color: white;">🤖 AI 批量审核</button>
+                    <button class="btn-batch btn-batch-cancel" onclick="clearSelection()">取消选择</button>
+                </div>
+            </div>
+
+            <div class="table-footer">
+                <span id="filterResultCount">共 0 条记录</span>
+            </div>
+        </section>
+    </main>
+</div>
+
+<script th:src="@{/js/admin.js}" src="/js/admin.js"></script>
+</body>
+</html>
