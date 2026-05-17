@@ -1,5 +1,6 @@
 package com.example.demo.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -15,12 +16,14 @@ public class ChatMessage {
     private String content;
     private String timestamp;
     private MessageType type;
+    private Boolean isRead;
 
     public enum MessageType {
         CHAT,
         JOIN,
         LEAVE,
-        TYPING
+        TYPING,
+        READ_RECEIPT
     }
     
     public void setTimestamp(LocalDateTime timestamp) {
@@ -31,6 +34,7 @@ public class ChatMessage {
         }
     }
     
+    @JsonIgnore
     public LocalDateTime getTimestampAsLocalDateTime() {
         if (timestamp != null && !timestamp.isEmpty()) {
             return LocalDateTime.parse(timestamp, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));

@@ -426,7 +426,7 @@ async function renderTable() {
     const categories = {1: '普通商品', 2: '二手教材', 3: '数码外设', 4: '寻物启事'};
     const statusLabels = {0: '待审核', 1: '已通过', 2: '已下架'};
 
-    tbody.innerHTML = await Promise.all(filteredItems.map(async (item) => {
+    const rows = await Promise.all(filteredItems.map(async (item) => {
         const imageHtml = item.imageUrl ?
             `<img src="${item.imageUrl}" alt="${escapeHtml(item.title)}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; cursor: pointer;" onclick="showImagePreview('${item.imageUrl}')">` :
             '<span style="color:#9ca3af;">无图片</span>';
@@ -436,7 +436,6 @@ async function renderTable() {
         let aiScoreHtml = '';
         let aiApprovedBadge = '';
 
-        // 对于待审核商品，显示 AI 审核建议
         if (item.status === 0) {
             try {
                 const headers = {};
@@ -471,19 +470,31 @@ async function renderTable() {
                 console.error('获取AI审核结果失败:', e);
             }
         }
-        // 对于已通过的商品，检查是否是 AI 自动通过的
         else if (item.status === 1 && item.aiScore != null && item.aiScore >= 80) {
-            aiApprovedBadge = `                <div class="ai-approved-badge">
-                    <div class="ai-title">🤖 AI 自动通过</div>
+            aiApprovedBadge = `<div class="ai-approved-badge">
+                    <div class="ai-title"> AI 自动通过</div>
                     <div class="ai-info">
                         评分: <span class="ai-score">${item.aiScore}分</span>
                         ${item.aiReviewTime ? ` | 审核时间: ${formatDateTime(item.aiReviewTime)}` : ''}                    </div>
                 </div>
             `;
         }
+        else if (item.status === 2 && item.aiScore != null && item.aiScore < 50) {
+            aiApprovedBadge = `<div class="ai-rejected-badge" style="background: rgba(255, 59, 48, 0.1); border-left: 3px solid #FF3B30; padding: 8px; border-radius: 8px; margin-top: 6px;">
+                    <div style="color: #FF3B30; font-weight: 600; font-size: 0.85rem;">🤖 AI 自动拒绝</div>
+                    <div style="color: #636366; font-size: 0.8rem; margin-top: 4px;">
+                        评分: <span style="color: #FF3B30; font-weight: 600;">${item.aiScore}分</span>
+                        ${item.aiReviewTime ? ` | 审核时间: ${formatDateTime(item.aiReviewTime)}` : ''}                    </div>
+                    ${item.aiReason ? `<div style="color: #FF3B30; font-size: 0.75rem; margin-top: 4px; font-style: italic;">原因: ${escapeHtml(item.aiReason)}</div>` : ''}                </div>
+            `;
+        }
 
-        return `            <tr>
-                <td><input type="checkbox" class="item-checkbox" data-id="${item.id}" onchange="toggleItemSelection(${item.id})" style="cursor: pointer; width: 18px; height: 18px;"></td>
+        const isChecked = selectedItems.has(item.id) ? 'checked' : '';
+
+        const isAIRejected = item.status === 2 && item.aiScore != null && item.aiScore < 50;
+
+        return `<tr class="${isAIRejected ? 'ai-rejected-row' : ''}">
+                <td><input type="checkbox" class="item-checkbox" data-id="${item.id}" ${isChecked} onchange="toggleItemSelection(${item.id})" style="cursor: pointer; width: 18px; height: 18px;"></td>
                 <td>${item.id}</td>
                 <td>${imageHtml}</td>
                 <td><strong>${escapeHtml(item.title)}</strong></td>
@@ -500,15 +511,15 @@ async function renderTable() {
                         ${item.status === 0 ? `                            <button class="btn-approve" onclick="approveItem(${item.id})">通过</button>
                             <button class="btn-reject" onclick="rejectItem(${item.id})">下架</button>
                             ${aiScoreHtml ? `<div style="font-size: 0.8rem; margin-top: 4px;">${aiScoreHtml}</div>` : ''}                        ` : item.status === 1 ? `                            <button class="btn-reject" onclick="rejectItem(${item.id})">下架</button>
-                        ` : `                            <button class="btn-approve" onclick="updateItemStatus(${item.id}, 0)">恢复</button>
-                        `}                    </div>
+                        ` : `                            <button class="btn-approve" onclick="updateItemStatus(${item.id}, 0)" ${isAIRejected ? 'disabled title="AI自动拒绝的违规商品，无法恢复"' : ''} style="${isAIRejected ? 'opacity: 0.5; cursor: not-allowed;' : ''}">恢复</button>
+                            ${isAIRejected ? '<span style="color: #FF3B30; font-size: 0.7rem;">⚠️ 严重违规，禁止恢复</span>' : ''}                        `}                    </div>
                 </td>
-            </tr>
-        `;
+            </tr>`;
     }));
-}
 
-// ... existing code ...
+    tbody.innerHTML = rows.join('');
+    updateSelectAllCheckbox();
+}
 
 function escapeHtml(text) {
     const div = document.createElement('div');
@@ -1133,7 +1144,7 @@ function toggleSelectAll() {
 
     checkboxes.forEach(checkbox => {
         checkbox.checked = selectAllCheckbox.checked;
-        const itemId = parseInt(checkbox.dataset.itemId);
+        const itemId = parseInt(checkbox.dataset.id);
         if (selectAllCheckbox.checked) {
             selectedItems.add(itemId);
         } else {
@@ -1141,9 +1152,9 @@ function toggleSelectAll() {
         }
     });
 
-    renderTable();
     updateBatchActions();
 }
+
 
 // 切换单个商品选择
 function toggleItemSelection(itemId) {
@@ -1155,7 +1166,6 @@ function toggleItemSelection(itemId) {
 
     updateSelectAllCheckbox();
     updateBatchActions();
-    renderTable();
 }
 
 // 更新全选复选框状态

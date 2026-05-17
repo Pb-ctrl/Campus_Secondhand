@@ -1271,49 +1271,6 @@ body {
     color: var(--ios-red) !important;
 }
 
-/* 商品详情按钮 */
-.btn-detail {
-    padding: 0.5rem 1rem;
-    font-size: 0.9rem;
-    background: transparent;
-    border: 1.5px solid var(--ios-primary);
-    color: var(--ios-primary);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    font-weight: 600;
-}
-
-.btn-detail:hover {
-    background: rgba(0, 122, 255, 0.1);
-    transform: scale(1.05);
-}
-
-.btn-detail:active {
-    transform: scale(0.95);
-}
-
-.btn-message {
-    padding: 0.5rem 1rem;
-    font-size: 0.9rem;
-    background: transparent;
-    border: 1.5px solid var(--ios-green);
-    color: var(--ios-green);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    font-weight: 600;
-}
-
-.btn-message:hover {
-    background: rgba(52, 199, 89, 0.1);
-    transform: scale(1.05);
-}
-
-.btn-message:active {
-    transform: scale(0.95);
-}
-
 /* 商品详情模态框 */
 .item-detail-modal {
     max-width: 700px;
@@ -1667,6 +1624,292 @@ body {
         max-width: none;
         font-size: 0.9rem;
         padding: 0.8rem 1rem;
+    }
+}
+
+/* ================= 聊天功能样式 ================= */
+
+.chat-modal .modal-content {
+    max-width: 600px;
+    height: 70vh;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+}
+
+.chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.chat-header {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.8);
+}
+
+.chat-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-main);
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.6);
+}
+
+.chat-input-area {
+    padding: 1rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    gap: 0.5rem;
+}
+
+.chat-input-area textarea {
+    flex: 1;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    padding: 0.5rem;
+    resize: none;
+    font-family: inherit;
+}
+
+.btn-send {
+    background: var(--ios-primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-send:hover {
+    background: #3b82f6;
+    transform: translateY(-1px);
+}
+
+.message-bubble {
+    max-width: 70%;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    border-radius: 12px;
+    position: relative;
+    word-wrap: break-word;
+}
+
+.message-bubble.mine {
+    background: var(--ios-primary);
+    color: white;
+    margin-left: auto;
+    border-bottom-right-radius: 4px;
+}
+
+.message-bubble.other {
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--text-main);
+    margin-right: auto;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.message-content {
+    margin-bottom: 0.25rem;
+    line-height: 1.4;
+}
+
+.message-time {
+    font-size: 0.75rem;
+    opacity: 0.7;
+    text-align: right;
+}
+
+.online-status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-left: 0.5rem;
+}
+
+.online-status.online {
+    background: #10b981;
+}
+
+.online-status.offline {
+    background: #ef4444;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .chat-modal .modal-content {
+        max-width: 95vw;
+        height: 80vh;
+    }
+
+    .message-bubble {
+        max-width: 85%;
+    }
+}
+
+/* ================= 消息中心样式 ================= */
+
+.message-center-icon {
+    transition: transform 0.2s;
+}
+
+.message-center-icon:hover {
+    transform: scale(1.1);
+}
+
+.message-center-panel {
+    position: fixed;
+    top: 0;
+    right: -400px;
+    width: 400px;
+    max-width: 90vw;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    box-shadow: -5px 0 20px rgba(0, 0, 0, 0.1);
+    z-index: 10000;
+    transition: right 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.message-center-panel.show {
+    right: 0;
+}
+
+.panel-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 9999;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.panel-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.conversation-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+.conversation-item {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.conversation-item:hover {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: var(--ios-primary);
+    transform: translateX(-5px);
+}
+
+.conversation-avatar {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-right: 1rem;
+    flex-shrink: 0;
+}
+
+.conversation-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.conversation-name {
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 0.25rem;
+    font-size: 1rem;
+}
+
+.conversation-preview {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.conversation-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    margin-left: 0.5rem;
+}
+
+.conversation-time {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+}
+
+.conversation-unread {
+    background: #10b981;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+.empty-conversations {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-muted);
+}
+
+.empty-conversations-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+@media (max-width: 768px) {
+    .message-center-panel {
+        width: 100%;
+        right: -100%;
     }
 }
 

@@ -574,6 +574,10 @@ public class ApiController {
                 return Result.error("商品不存在");
             }
             
+            if (item.getAiScore() != null && item.getAiScore() < 50) {
+                return Result.error("该商品因严重违规被AI自动拒绝，无法重新上架。请修改商品信息后重新发布");
+            }
+            
             boolean success = itemService.updateItemStatus(itemId, 1);
             if (success) {
                 return Result.success();

@@ -24,9 +24,13 @@ public class AIReviewService {
     @Autowired
     private ItemService itemService;
 
+    @Autowired
+    private ImageReviewService imageReviewService;
+
     private final RestTemplate restTemplate = new RestTemplate();
 
     private static final int AUTO_APPROVE_SCORE = 80;
+    private static final int AUTO_REJECT_SCORE = 50;
 
     public Map<String, Object> reviewItem(Item item) {
         Map<String, Object> result = new HashMap<>();
@@ -82,49 +86,79 @@ public class AIReviewService {
                     result.put("autoApproved", true);
                     result.put("message", "分数 >= 80，已自动通过审核");
                 }
+            } else if (item.getAiScore() < AUTO_REJECT_SCORE && item.getStatus() == 0) {
+                boolean rejected = itemService.updateItemStatus(item.getId(), 2);
+                if (rejected) {
+                    result.put("autoRejected", true);
+                    result.put("message", "分数 < 50，已自动拒绝上架");
+                }
             } else {
                 result.put("autoApproved", false);
+                result.put("autoRejected", false);
             }
             
             return result;
         }
 
-        // 没有缓存，调用 AI API
-        System.out.println("○ 商品ID: " + item.getId() + " 调用 AI API 进行审核");
+        // 没有缓存，调用 AI API 进行图文双重审核
+        System.out.println("○ 商品ID: " + item.getId() + " 调用 AI API 进行图文双重审核");
         
         try {
+            // 1. 文本审核
             String prompt = buildReviewPrompt(item);
             String aiResponse = callDeepSeekAPI(prompt);
-
-            Map<String, Object> reviewResult = parseAIResponse(aiResponse);
+            Map<String, Object> textReviewResult = parseAIResponse(aiResponse);
             
-            // 保存 AI 审核结果到数据库
-            saveAIReviewResult(item, reviewResult);
+            // 2. 图像审核
+            Map<String, Object> imageReviewResult = imageReviewService.reviewImage(item.getImageUrl());
             
-            // 如果分数 >= 80，自动通过
-            int score = (int) reviewResult.getOrDefault("score", 0);
-            System.out.println("商品ID: " + item.getId() + ", AI评分: " + score + ", 自动通过阈值: " + AUTO_APPROVE_SCORE);
+            // 3. 综合评分（文本70% + 图像30%）
+            Map<String, Object> combinedResult = combineReviews(textReviewResult, imageReviewResult);
+            
+            // 保存审核结果到数据库
+            saveAIReviewResult(item, combinedResult);
+            
+            // 根据综合分数决定自动通过或拒绝
+            int score = (int) combinedResult.getOrDefault("score", 0);
+            System.out.println("商品ID: " + item.getId() + ", 综合评分: " + score + ", 自动通过阈值: " + AUTO_APPROVE_SCORE + ", 自动拒绝阈值: " + AUTO_REJECT_SCORE);
             
             if (score >= AUTO_APPROVE_SCORE) {
                 System.out.println("✓ 商品ID: " + item.getId() + " 分数 >= 80，尝试自动通过...");
                 boolean approved = itemService.updateItemStatus(item.getId(), 1);
                 if (approved) {
-                    reviewResult.put("autoApproved", true);
-                    reviewResult.put("message", "分数 >= 80，已自动通过审核");
+                    combinedResult.put("autoApproved", true);
+                    combinedResult.put("autoRejected", false);
+                    combinedResult.put("message", "分数 >= 80，已自动通过审核");
                     System.out.println("✓ 商品ID: " + item.getId() + " 自动通过成功");
                 } else {
-                    reviewResult.put("autoApproved", false);
-                    reviewResult.put("message", "自动通过失败，请手动审核");
+                    combinedResult.put("autoApproved", false);
+                    combinedResult.put("autoRejected", false);
+                    combinedResult.put("message", "自动通过失败，请手动审核");
                     System.err.println("✗ 商品ID: " + item.getId() + " 自动通过失败");
                 }
+            } else if (score < AUTO_REJECT_SCORE) {
+                System.out.println("✗ 商品ID: " + item.getId() + " 分数 < 50，尝试自动拒绝...");
+                boolean rejected = itemService.updateItemStatus(item.getId(), 2);
+                if (rejected) {
+                    combinedResult.put("autoApproved", false);
+                    combinedResult.put("autoRejected", true);
+                    combinedResult.put("message", "分数 < 50，已自动拒绝上架");
+                    System.out.println("✓ 商品ID: " + item.getId() + " 自动拒绝成功");
+                } else {
+                    combinedResult.put("autoApproved", false);
+                    combinedResult.put("autoRejected", false);
+                    combinedResult.put("message", "自动拒绝失败，请手动审核");
+                    System.err.println("✗ 商品ID: " + item.getId() + " 自动拒绝失败");
+                }
             } else {
-                reviewResult.put("autoApproved", false);
-                System.out.println("○ 商品ID: " + item.getId() + " 分数 < 80，需要人工审核");
+                combinedResult.put("autoApproved", false);
+                combinedResult.put("autoRejected", false);
+                System.out.println("○ 商品ID: " + item.getId() + " 分数在 50-79 之间，需要人工审核");
             }
             
-            reviewResult.put("cached", false);  // 标记为新审核结果
+            combinedResult.put("cached", false);  // 标记为新审核结果
             
-            return reviewResult;
+            return combinedResult;
         } catch (Exception e) {
             e.printStackTrace();
             result.put("score", 50);
@@ -137,6 +171,81 @@ public class AIReviewService {
     }
 
     /**
+     * 综合文本和图像审核结果
+     */
+    private Map<String, Object> combineReviews(Map<String, Object> textResult, Map<String, Object> imageResult) {
+        Map<String, Object> combined = new HashMap<>();
+        
+        // 获取文本评分
+        int textScore = (int) textResult.getOrDefault("score", 50);
+        
+        // 获取图像评分
+        int imageScore = (int) imageResult.getOrDefault("score", 100);
+        Boolean imageSafe = (Boolean) imageResult.getOrDefault("safe", true);
+        
+        // 综合评分：文本70% + 图像30%
+        int combinedScore = (int) (textScore * 0.7 + imageScore * 0.3);
+        
+        // 如果图像不安全，额外扣分
+        if (!imageSafe) {
+            combinedScore = Math.min(combinedScore, 40);
+        }
+        
+        combined.put("score", combinedScore);
+        
+        // 合并警告信息
+        List<String> warnings = new ArrayList<>();
+        if (textResult.containsKey("warnings")) {
+            warnings.addAll((List<String>) textResult.get("warnings"));
+        }
+        if (imageResult.containsKey("categories")) {
+            List<String> imageCategories = (List<String>) imageResult.get("categories");
+            if (!imageCategories.isEmpty()) {
+                warnings.add("图像问题: " + String.join(", ", imageCategories));
+            }
+        }
+        combined.put("warnings", warnings);
+        
+        // 合并建议
+        List<String> suggestions = new ArrayList<>();
+        if (textResult.containsKey("suggestions")) {
+            suggestions.addAll((List<String>) textResult.get("suggestions"));
+        }
+        if (!imageSafe) {
+            suggestions.add("请更换符合规范的图片");
+        }
+        combined.put("suggestions", suggestions);
+        
+        // 综合建议
+        String recommendation;
+        if (combinedScore >= 80 && imageSafe) {
+            recommendation = "approve";
+        } else if (combinedScore < 50 || !imageSafe) {
+            recommendation = "reject";
+        } else {
+            recommendation = "review";
+        }
+        combined.put("recommendation", recommendation);
+        
+        // 综合理由
+        String reason = (String) textResult.getOrDefault("reason", "");
+        String imageMessage = (String) imageResult.getOrDefault("message", "");
+        if (!imageMessage.isEmpty()) {
+            reason += " | 图像: " + imageMessage;
+        }
+        combined.put("reason", reason);
+        
+        // 保存图像审核详情
+        combined.put("imageScore", imageScore);
+        combined.put("imageSafe", imageSafe);
+        combined.put("imageCategories", imageResult.getOrDefault("categories", new ArrayList<>()));
+        combined.put("imageDetails", imageResult.getOrDefault("details", new HashMap<>()));
+        combined.put("imageMessage", imageMessage);
+        
+        return combined;
+    }
+
+    /**
      * 保存 AI 审核结果到数据库
      */
     private void saveAIReviewResult(Item item, Map<String, Object> reviewResult) {
@@ -144,7 +253,7 @@ public class AIReviewService {
             Item updateItem = new Item();
             updateItem.setId(item.getId());
             
-            // 保存审核分数
+            // 保存文本审核分数
             if (reviewResult.containsKey("score")) {
                 updateItem.setAiScore((int) reviewResult.get("score"));
             }
@@ -171,13 +280,33 @@ public class AIReviewService {
                 updateItem.setAiSuggestions(objectMapper.writeValueAsString(suggestions));
             }
             
+            // 保存图像审核结果
+            if (reviewResult.containsKey("imageScore")) {
+                updateItem.setImageScore((int) reviewResult.get("imageScore"));
+            }
+            if (reviewResult.containsKey("imageSafe")) {
+                updateItem.setImageSafe((Boolean) reviewResult.get("imageSafe"));
+            }
+            if (reviewResult.containsKey("imageCategories")) {
+                List<String> categories = (List<String>) reviewResult.get("imageCategories");
+                updateItem.setImageCategories(objectMapper.writeValueAsString(categories));
+            }
+            if (reviewResult.containsKey("imageDetails")) {
+                Map<String, Object> details = (Map<String, Object>) reviewResult.get("imageDetails");
+                updateItem.setImageDetails(objectMapper.writeValueAsString(details));
+            }
+            if (reviewResult.containsKey("imageMessage")) {
+                updateItem.setImageMessage((String) reviewResult.get("imageMessage"));
+            }
+            
             // 保存审核时间
             updateItem.setAiReviewTime(java.time.LocalDateTime.now());
+            updateItem.setImageReviewTime(java.time.LocalDateTime.now());
             
             // 更新到数据库
             itemService.updateItem(updateItem);
             
-            System.out.println("✓ 商品ID: " + item.getId() + " AI 审核结果已保存到数据库");
+            System.out.println("✓ 商品ID: " + item.getId() + " 图文双重审核结果已保存到数据库");
         } catch (Exception e) {
             System.err.println("✗ 保存 AI 审核结果失败: " + e.getMessage());
             e.printStackTrace();
@@ -339,6 +468,7 @@ public class AIReviewService {
         int reviewCount = 0;
         int rejectCount = 0;
         int autoApprovedCount = 0;
+        int autoRejectedCount = 0;
         int cachedCount = 0;
 
         System.out.println("开始批量审核，共 " + items.size() + " 个商品");
@@ -355,10 +485,14 @@ public class AIReviewService {
 
             String recommendation = (String) review.get("recommendation");
             Boolean autoApproved = (Boolean) review.getOrDefault("autoApproved", false);
+            Boolean autoRejected = (Boolean) review.getOrDefault("autoRejected", false);
             
             if (autoApproved) {
                 autoApprovedCount++;
                 approveCount++;
+            } else if (autoRejected) {
+                autoRejectedCount++;
+                rejectCount++;
             } else if ("approve".equals(recommendation)) {
                 approveCount++;
             } else if ("review".equals(recommendation)) {
@@ -370,6 +504,7 @@ public class AIReviewService {
 
         System.out.println("批量审核完成 - 使用缓存: " + cachedCount + 
                           ", 自动通过: " + autoApprovedCount + 
+                          ", 自动拒绝: " + autoRejectedCount +
                           ", 建议通过: " + approveCount + 
                           ", 建议复审: " + reviewCount + 
                           ", 建议拒绝: " + rejectCount);
@@ -380,6 +515,7 @@ public class AIReviewService {
                 "reviewCount", reviewCount,
                 "rejectCount", rejectCount,
                 "autoApprovedCount", autoApprovedCount,
+                "autoRejectedCount", autoRejectedCount,
                 "cachedCount", cachedCount,
                 "totalCount", items.size()
         ));

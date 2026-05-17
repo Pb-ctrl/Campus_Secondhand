@@ -25,6 +25,11 @@
             🔔
             <span id="unreadBadge" style="display: none; position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 0.7rem; display: flex; align-items: center; justify-content: center;">0</span>
         </div>
+        <!-- 消息中心入口 -->
+        <div class="message-center-icon" id="messageCenterIcon" onclick="showMessageCenter()" style="position: relative; margin-right: 1rem; cursor: pointer; font-size: 1.5rem;" title="消息中心">
+            💬
+            <span id="chatUnreadBadge" style="display: none; position: absolute; top: -5px; right: -5px; background: #10b981; color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 0.7rem; display: flex; align-items: center; justify-content: center;">0</span>
+        </div>
         <!-- 个人中心入口 -->
         <button class="btn-user-center" onclick="toggleUserMenu()" title="个人中心">
             <span class="user-icon"></span>
@@ -108,7 +113,7 @@
                         <h4>🎯 审核等级</h4>
                         <div class="level-item level-approve">
                             <span class="level-badge">≥80分</span>
-                            <span class="level-text">✅ 建议通过 - 商品信息完整规范，符合发布标准</span>
+                            <span class="level-text">✅ 自动通过 - 商品信息完整规范，符合发布标准</span>
                         </div>
                         <div class="level-item level-review">
                             <span class="level-badge">50-79分</span>
@@ -116,7 +121,7 @@
                         </div>
                         <div class="level-item level-reject">
                             <span class="level-badge">&lt;50分</span>
-                            <span class="level-text">❌ 建议拒绝 - 存在违规或不规范内容</span>
+                            <span class="level-text">❌ 判定为严重违规（如违禁品、虚假宣传、敏感信息），直接拦截并拒绝发布</span>
                         </div>
                     </div>
 
@@ -393,6 +398,19 @@
                 <div class="panel-title logout-title">退出登录</div>
                 <div class="panel-desc logout-desc">退出当前账号</div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- 消息中心面板 -->
+<div id="messageCenterPanel" class="message-center-panel">
+    <div class="panel-header">
+        <h3>💬 消息中心</h3>
+        <span class="close-panel" onclick="closeMessageCenterPanel()">&times;</span>
+    </div>
+    <div class="panel-content">
+        <div id="conversationList" class="conversation-list">
+            <!-- 对话列表将动态加载 -->
         </div>
     </div>
 </div>

@@ -41,4 +41,12 @@ public class Item {
     private String aiSuggestions;      // AI 改进建议（JSON数组）
     private String aiReason;           // AI 审核理由
     private LocalDateTime aiReviewTime; // AI 审核时间
+    
+    // 图像审核相关字段
+    private Integer imageScore;           // 图像审核分数
+    private Boolean imageSafe;            // 图像是否安全
+    private String imageCategories;       // 图像违规类别（JSON数组）
+    private String imageDetails;          // 图像审核详情（JSON对象）
+    private String imageMessage;          // 图像审核消息
+    private LocalDateTime imageReviewTime; // 图像审核时间
 }

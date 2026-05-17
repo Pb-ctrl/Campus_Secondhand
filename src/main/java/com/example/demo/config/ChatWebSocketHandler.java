@@ -1,11 +1,13 @@
 package com.example.demo.config;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.demo.entity.ChatMessage;
 import com.example.demo.entity.Message;
 import com.example.demo.entity.User;
 import com.example.demo.mapper.MessageMapper;
 import com.example.demo.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -14,13 +16,14 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class ChatWebSocketHandler extends TextWebSocketHandler {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
     private final UserService userService;
     private final MessageMapper messageMapper;
 
@@ -29,6 +32,10 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     public ChatWebSocketHandler(UserService userService, MessageMapper messageMapper) {
         this.userService = userService;
         this.messageMapper = messageMapper;
+        
+        // 配置 ObjectMapper 支持 Java 8 时间类型
+        this.objectMapper = new ObjectMapper();
+        this.objectMapper.registerModule(new JavaTimeModule());
     }
 
     @Override
@@ -68,10 +75,16 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                     }
                 }
                 
-                saveChatMessage(chatMessage);
+                if (chatMessage.getType() == ChatMessage.MessageType.CHAT) {
+                    saveChatMessage(chatMessage);
+                }
                 
                 if (chatMessage.getToUserId() != null) {
                     sendMessageToUser(chatMessage.getToUserId(), chatMessage);
+                }
+                
+                if (chatMessage.getType() == ChatMessage.MessageType.READ_RECEIPT) {
+                    markMessagesAsRead(chatMessage.getFromUserId(), fromUserId);
                 }
             }
         } catch (Exception e) {
@@ -86,6 +99,12 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         if (userId != null) {
             onlineUsers.remove(userId);
             System.out.println("用户断开连接: " + userId);
+            
+            ChatMessage leaveMsg = new ChatMessage();
+            leaveMsg.setType(ChatMessage.MessageType.LEAVE);
+            leaveMsg.setFromUserId(userId);
+            leaveMsg.setTimestamp(LocalDateTime.now());
+            broadcastUserStatus(leaveMsg);
         }
     }
 
@@ -128,6 +147,17 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
+    private void broadcastUserStatus(ChatMessage message) {
+        onlineUsers.forEach((userId, session) -> {
+            try {
+                String jsonMessage = objectMapper.writeValueAsString(message);
+                session.sendMessage(new TextMessage(jsonMessage));
+            } catch (IOException e) {
+                System.err.println("广播用户状态失败: " + e.getMessage());
+            }
+        });
+    }
+
     private void saveChatMessage(ChatMessage chatMessage) {
         try {
             Message message = new Message();
@@ -143,6 +173,25 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             System.out.println("消息已保存到数据库: " + message.getId());
         } catch (Exception e) {
             System.err.println("保存消息失败: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private void markMessagesAsRead(Long fromUserId, Long toUserId) {
+        try {
+            List<Message> unreadMessages = messageMapper.selectList(
+                new LambdaQueryWrapper<Message>()
+                    .eq(Message::getFromUserId, fromUserId)
+                    .eq(Message::getToUserId, toUserId)
+                    .eq(Message::getIsRead, 0)
+            );
+            
+            for (Message msg : unreadMessages) {
+                msg.setIsRead(1);
+                messageMapper.updateById(msg);
+            }
+        } catch (Exception e) {
+            System.err.println("标记消息已读失败: " + e.getMessage());
             e.printStackTrace();
         }
     }

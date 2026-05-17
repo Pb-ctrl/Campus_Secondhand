@@ -56,6 +56,32 @@ public class MessageController {
         }
     }
 
+    @GetMapping("/private/{userId}/{otherUserId}")
+    public Result<List<Map<String, Object>>> getPrivateMessages(@PathVariable Long userId, @PathVariable Long otherUserId) {
+        try {
+            List<Message> messages = messageService.getPrivateMessagesBetweenUsers(userId, otherUserId);
+            
+            List<Map<String, Object>> result = messages.stream().map(message -> {
+                Map<String, Object> map = new HashMap<>();
+                map.put("id", message.getId());
+                map.put("fromUserId", message.getFromUserId());
+                map.put("toUserId", message.getToUserId());
+                map.put("content", message.getContent());
+                map.put("isRead", message.getIsRead());
+                map.put("createTime", message.getCreateTime());
+                
+                User fromUser = userService.getUserById(message.getFromUserId());
+                map.put("fromUserName", fromUser != null ? fromUser.getUsername() : "未知用户");
+                
+                return map;
+            }).toList();
+            
+            return Result.success(result);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
     @GetMapping("/from/{fromUserId}")
     public Result<List<Message>> getMessagesByFromUser(@PathVariable Long fromUserId) {
         try {
@@ -80,6 +106,26 @@ public class MessageController {
     public Result<Integer> getUnreadCount(@PathVariable Long userId) {
         try {
             int count = messageService.getUnreadCount(userId);
+            return Result.success(count);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @GetMapping("/conversations/{userId}")
+    public Result<List<Map<String, Object>>> getConversations(@PathVariable Long userId) {
+        try {
+            List<Map<String, Object>> conversations = messageService.getConversationsByUserId(userId);
+            return Result.success(conversations);
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @GetMapping("/chat-unread/{userId}")
+    public Result<Long> getChatUnreadCount(@PathVariable Long userId) {
+        try {
+            long count = messageService.getChatUnreadCount(userId);
             return Result.success(count);
         } catch (Exception e) {
             return Result.error(e.getMessage());

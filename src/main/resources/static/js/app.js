@@ -312,6 +312,235 @@ window.closeUserCenterPanel = function closeUserCenterPanel() {
     console.log('User center panel closed');
 }
 
+// 显示消息中心
+window.showMessageCenter = async function showMessageCenter() {
+    if (!currentUser) {
+        showToast('请先登录', 'warning');
+        showLoginModal();
+        return;
+    }
+
+    console.log('=== 打开消息中心 ===');
+
+    const panel = document.getElementById('messageCenterPanel');
+    const overlay = document.createElement('div');
+    overlay.className = 'panel-overlay show';
+    overlay.id = 'messageCenterOverlay';
+    overlay.onclick = closeMessageCenterPanel;
+
+    if (panel) {
+        panel.classList.add('show');
+        document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
+
+        // 加载对话列表
+        await loadConversationList();
+    } else {
+        console.error('找不到消息中心面板元素');
+    }
+};
+
+
+// 关闭消息中心
+window.closeMessageCenterPanel = function closeMessageCenterPanel() {
+    const panel = document.getElementById('messageCenterPanel');
+    const overlay = document.getElementById('messageCenterOverlay');
+
+    if (panel) {
+        panel.classList.remove('show');
+    }
+    if (overlay) {
+        overlay.remove();
+    }
+    document.body.style.overflow = '';
+};
+
+// 加载对话列表
+async function loadConversationList() {
+    console.log('--- 开始加载对话列表 ---');
+
+    const listContainer = document.getElementById('conversationList');
+    if (!listContainer) {
+        console.error('❌ 找不到对话列表容器');
+        return;
+    }
+
+    listContainer.innerHTML = '<div class="loading">加载中...</div>';
+
+    try {
+        const apiUrl = `/api/message/conversations/${currentUser.id}`;
+        console.log('请求API:', apiUrl);
+
+        const response = await fetch(apiUrl);
+        const result = await response.json();
+
+        console.log('API响应:', result);
+
+        if (result.code === 200 && result.data) {
+            console.log('对话数量:', result.data.length);
+            if (result.data.length > 0) {
+                console.log('第一个对话:', result.data[0]);
+            }
+            renderConversationList(result.data);
+        } else {
+            console.log('没有对话数据或请求失败');
+            listContainer.innerHTML = `                <div class="empty-conversations">
+                    <div class="empty-conversations-icon">💬</div>
+                    <p>暂无对话</p>
+                    <p style="font-size: 0.85rem; margin-top: 0.5rem;">点击商品卡片上的"私信"按钮开始聊天</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('❌ 加载对话列表异常:', error);
+        listContainer.innerHTML = `            <div class="empty-conversations">
+                <div class="empty-conversations-icon">⚠️</div>
+                <p>加载失败，请重试</p>
+            </div>
+        `;
+    }
+
+    console.log('--- 加载对话列表结束 ---');
+}
+
+
+// 渲染对话列表
+function renderConversationList(conversations) {
+    console.log('--- 开始渲染对话列表 ---');
+
+    const listContainer = document.getElementById('conversationList');
+    if (!listContainer) {
+        console.error('❌ 找不到对话列表容器');
+        return;
+    }
+
+    if (!conversations || conversations.length === 0) {
+        console.log('没有对话数据');
+        listContainer.innerHTML = `            <div class="empty-conversations">
+                <div class="empty-conversations-icon">💬</div>
+                <p>暂无对话</p>
+                <p style="font-size: 0.85rem; margin-top: 0.5rem;">点击商品卡片上的"私信"按钮开始聊天</p>
+            </div>
+        `;
+        return;
+    }
+
+    console.log('渲染', conversations.length, '个对话');
+
+    listContainer.innerHTML = conversations.map((conv, index) => {
+        const userName = conv.userName || '用户' + conv.userId;
+        const firstLetter = userName.charAt(0).toUpperCase();
+        const unreadBadge = conv.unreadCount > 0
+            ? `<div class="conversation-unread">${conv.unreadCount}</div>`
+            : '';
+
+        if (index === 0) {
+            console.log('第一个对话详情:', {
+                userId: conv.userId,
+                userName: userName,
+                lastMessage: conv.lastMessage,
+                unreadCount: conv.unreadCount
+            });
+        }
+
+        return `            <div class="conversation-item" onclick="openChatFromConversation(${conv.userId}, '${escapeHtml(userName)}')">
+                <div class="conversation-avatar">${firstLetter}</div>
+                <div class="conversation-info">
+                    <div class="conversation-name">${escapeHtml(userName)}</div>
+                    <div class="conversation-preview">${escapeHtml(conv.lastMessage || '暂无消息')}</div>
+                </div>
+                <div class="conversation-meta">
+                    <div class="conversation-time">${formatTime(conv.lastMessageTime)}</div>
+                    ${unreadBadge}                </div>
+            </div>
+        `;
+    }).join('');
+
+    console.log('对话列表渲染完成');
+    console.log('--- 渲染对话列表结束 ---');
+}
+
+
+// 从对话列表打开聊天
+window.openChatFromConversation = async function openChatFromConversation(otherUserId, otherUserName) {
+    closeMessageCenterPanel();
+
+    // 获取用户信息以获取更准确的名称
+    try {
+        const response = await fetch(`/api/user/${otherUserId}`);
+        const result = await response.json();
+        if (result.code === 200 && result.data) {
+            otherUserName = result.data.username;
+        }
+    } catch (error) {
+        console.error('获取用户信息失败:', error);
+    }
+
+    // 打开聊天窗口
+    openPrivateChat(otherUserId, otherUserName);
+};
+
+// 加载聊天未读数量
+async function loadChatUnreadCount() {
+    if (!currentUser) return;
+
+    try {
+        const response = await fetch(`/api/message/chat-unread/${currentUser.id}`);
+        const result = await response.json();
+
+        if (result.code === 200) {
+            const badge = document.getElementById('chatUnreadBadge');
+            if (badge) {
+                if (result.data > 0) {
+                    badge.textContent = result.data > 99 ? '99+' : result.data;
+                    badge.style.display = 'flex';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        }
+    } catch (error) {
+        console.error('加载聊天未读数量失败:', error);
+    }
+}
+
+// 在处理 WebSocket 消息时更新未读计数
+const originalHandleChatMessage = window.handleChatMessage;
+window.handleChatMessage = function handleChatMessage(message) {
+    if (originalHandleChatMessage) {
+        originalHandleChatMessage(message);
+    }
+
+    // 如果消息不是发给当前正在聊天的用户，增加未读计数
+    if (currentChatUserId !== message.fromUserId) {
+        loadChatUnreadCount();
+    }
+};
+
+// 在页面加载完成后加载未读计数
+document.addEventListener('DOMContentLoaded', () => {
+    // ... existing code ...
+
+    if (currentUser) {
+        initWebSocket();
+        loadChatUnreadCount();
+    }
+});
+
+// 在登录成功后加载未读计数
+const originalHandleLogin2 = window.handleLogin;
+window.handleLogin = async function handleLogin(e) {
+    if (originalHandleLogin2) {
+        await originalHandleLogin2(e);
+    }
+
+    if (currentUser) {
+        setTimeout(() => {
+            initWebSocket();
+            loadChatUnreadCount();
+        }, 1000);
+    }
+};
 
 // 显示我的商品
 window.showMyItems = function showMyItems() {
@@ -515,6 +744,14 @@ function createItemCard(item) {
     const favoriteBtnText = isFavorited ? '❤️ 已收藏' : '🤍 收藏';
     const favoriteBtnClass = isFavorited ? 'btn-favorite favorited' : 'btn-favorite';
 
+    // 添加私信按钮（如果不是自己的商品）
+    let privateChatButton = '';
+    if (currentUser && item.userId && currentUser.id !== item.userId) {
+        // 获取卖家名称，优先使用 userName，其次使用 sellerName
+        const sellerName = item.userName || item.sellerName || '卖家';
+        privateChatButton = `<button class="btn-private-chat" onclick="openPrivateChat(${item.userId}, '${escapeHtml(sellerName)}', ${item.id})">💬 私信</button>`;
+    }
+
     return `        <article class="glass-card item ${categoryClass}" data-category="${categoryClass}" data-id="${item.id}">
             ${imageHtml}            <div class="card-content">
                 ${badge}                ${ownerBadge}                <h3 class="title">${escapeHtml(item.title)}</h3>
@@ -528,11 +765,12 @@ function createItemCard(item) {
                         ${favoriteBtnText}                    </button>
                     <button class="btn-detail" onclick="showItemDetail(${item.id})">📋 详情</button>
                     <button class="btn-message" onclick="openMessageModal(${item.id})"> 留言</button>
-                </div>
+                    ${privateChatButton}                </div>
             </div>
         </article>
     `;
 }
+
 
 // 创建带操作按钮的商品卡片
 function createItemCardWithActions(item) {
@@ -1867,3 +2105,394 @@ async function toggleFavorite(itemId, event) {
     }
 }
 
+// ================= WebSocket 实时私信功能 =================
+
+let wsConnection = null;
+let currentChatUserId = null;
+let chatHistory = [];
+
+// 初始化 WebSocket 连接
+function initWebSocket() {
+    if (!currentUser || wsConnection) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/chat?userId=${currentUser.id}`;
+
+    try {
+        wsConnection = new WebSocket(wsUrl);
+
+        wsConnection.onopen = function () {
+            console.log('WebSocket 连接已建立');
+            showToast('实时聊天已连接', 'success');
+        };
+
+        wsConnection.onmessage = function (event) {
+            const message = JSON.parse(event.data);
+            handleWebSocketMessage(message);
+        };
+
+        wsConnection.onerror = function (error) {
+            console.error('WebSocket 错误:', error);
+            showToast('聊天连接异常', 'error');
+        };
+
+        wsConnection.onclose = function () {
+            console.log('WebSocket 连接已关闭');
+            wsConnection = null;
+            // 尝试重连
+            setTimeout(initWebSocket, 3000);
+        };
+    } catch (error) {
+        console.error('WebSocket 连接失败:', error);
+    }
+}
+
+// 处理接收到的 WebSocket 消息
+function handleWebSocketMessage(message) {
+    switch (message.type) {
+        case 'CHAT':
+            handleChatMessage(message);
+            break;
+        case 'JOIN':
+            console.log(`${message.fromUserName} 加入了聊天`);
+            break;
+        case 'LEAVE':
+            console.log(`${message.fromUserName} 离开了聊天`);
+            updateOnlineStatus(message.fromUserId, false);
+            break;
+        case 'READ_RECEIPT':
+            handleReadReceipt(message);
+            break;
+    }
+}
+
+// 处理聊天消息
+function handleChatMessage(message) {
+    // 如果当前正在与发送者聊天，则立即显示消息
+    if (currentChatUserId === message.fromUserId) {
+        appendMessageToChat(message);
+        // 标记为已读
+        sendReadReceipt(message.fromUserId);
+    } else {
+        // 否则显示通知
+        showToast(`收到来自 ${message.fromUserName} 的新消息`, 'info');
+        // 可以在这里添加未读消息计数
+    }
+}
+
+// 处理已读回执
+function handleReadReceipt(message) {
+    // 更新本地消息状态为已读
+    chatHistory.forEach(msg => {
+        if (msg.fromUserId === currentUser.id && msg.toUserId === message.fromUserId) {
+            msg.isRead = true;
+        }
+    });
+}
+
+// 发送已读回执
+function sendReadReceipt(toUserId) {
+    if (!wsConnection || wsConnection.readyState !== WebSocket.OPEN) return;
+
+    const receipt = {
+        type: 'READ_RECEIPT',
+        fromUserId: currentUser.id,
+        toUserId: toUserId,
+        timestamp: new Date().toISOString()
+    };
+
+    wsConnection.send(JSON.stringify(receipt));
+}
+
+// 打开私信对话框
+window.openPrivateChat = function openPrivateChat(otherUserId, otherUserName, itemId) {
+    if (!currentUser) {
+        showToast('请先登录', 'warning');
+        showLoginModal();
+        return;
+    }
+
+    console.log('打开私信对话框:', otherUserId, otherUserName);
+
+    currentChatUserId = otherUserId;
+    currentChatItemId = itemId || null; // 保存商品 ID
+
+    // 创建或显示私信对话框
+    showChatModal(otherUserId, otherUserName);
+
+    // 加载聊天历史
+    async function loadChatHistory(otherUserId) {
+        console.log('=== 开始加载聊天历史 ===');
+        console.log('当前用户ID:', currentUser?.id);
+        console.log('对方用户ID:', otherUserId);
+
+        const messagesContainer = document.getElementById(`chatMessages_${otherUserId}`);
+        if (!messagesContainer) {
+            console.error('❌ 找不到消息容器: chatMessages_' + otherUserId);
+            console.log('尝试查找所有聊天容器...');
+            const allContainers = document.querySelectorAll('[id^="chatMessages_"]');
+            console.log('找到的容器:', Array.from(allContainers).map(el => el.id));
+            return;
+        }
+
+        console.log('✅ 找到消息容器:', messagesContainer.id);
+        messagesContainer.innerHTML = '<div class="loading">加载聊天记录...</div>';
+
+        try {
+            const apiUrl = `/api/message/private/${currentUser.id}/${otherUserId}`;
+            console.log('请求API:', apiUrl);
+
+            const response = await fetch(apiUrl);
+            const result = await response.json();
+
+            console.log('API响应:', result);
+            console.log('消息数量:', result.data?.length || 0);
+
+            if (result.code === 200) {
+                chatHistory = result.data || [];
+                console.log('准备渲染消息，数量:', chatHistory.length);
+
+                if (chatHistory.length > 0) {
+                    console.log('第一条消息:', chatHistory[0]);
+                    console.log('最后一条消息:', chatHistory[chatHistory.length - 1]);
+                }
+
+                renderChatMessages(chatHistory, otherUserId);
+            } else {
+                console.error('API返回错误:', result.msg);
+                messagesContainer.innerHTML = '<p style="text-align:center;color:#9ca3af;">加载聊天记录失败</p>';
+            }
+        } catch (error) {
+            console.error('❌ 加载聊天历史异常:', error);
+            messagesContainer.innerHTML = '<p style="text-align:center;color:#9ca3af;">网络错误</p>';
+        }
+
+        console.log('=== 加载聊天历史结束 ===');
+    }
+
+
+    // 标记消息为已读
+    sendReadReceipt(otherUserId);
+};
+
+// 显示聊天模态框
+function showChatModal(otherUserId, otherUserName) {
+    // 检查是否已存在聊天窗口
+    let chatModal = document.getElementById(`chatModal_${otherUserId}`);
+
+    if (!chatModal) {
+        console.log('创建新的聊天窗口:', otherUserId, otherUserName);
+
+        chatModal = document.createElement('div');
+        chatModal.className = 'modal show chat-modal';
+        chatModal.id = `chatModal_${otherUserId}`;
+
+        chatModal.innerHTML = `            <div class="modal-content glass-card chat-container">
+                <div class="chat-header">
+                    <h3>与 ${escapeHtml(otherUserName)} 的对话</h3>
+                    <span class="close" onclick="closeChatModal(${otherUserId})">&times;</span>
+                </div>
+                <div class="chat-messages" id="chatMessages_${otherUserId}">
+                    <!-- 消息将在这里动态加载 -->
+                </div>
+                <div class="chat-input-area">
+                    <textarea id="chatInput_${otherUserId}" placeholder="输入消息..." rows="2"></textarea>
+                    <button class="btn-send" onclick="sendChatMessage(${otherUserId})">发送</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(chatModal);
+        console.log('聊天窗口创建完成，容器ID: chatMessages_' + otherUserId);
+    } else {
+        console.log('使用已存在的聊天窗口:', otherUserId);
+        chatModal.classList.add('show');
+    }
+}
+
+
+// 关闭聊天模态框
+window.closeChatModal = function closeChatModal(otherUserId) {
+    const chatModal = document.getElementById(`chatModal_${otherUserId}`);
+    if (chatModal) {
+        chatModal.classList.remove('show');
+    }
+    currentChatUserId = null;
+};
+
+async function loadChatHistory(otherUserId) {
+    const messagesContainer = document.getElementById(`chatMessages_${otherUserId}`);
+    if (!messagesContainer) {
+        console.error('找不到消息容器: chatMessages_' + otherUserId);
+        return;
+    }
+
+    messagesContainer.innerHTML = '<div class="loading">加载聊天记录...</div>';
+
+    try {
+        console.log('加载聊天历史:', currentUser.id, otherUserId);
+        const response = await fetch(`/api/message/private/${currentUser.id}/${otherUserId}`);
+        const result = await response.json();
+
+        console.log('聊天历史响应:', result);
+
+        if (result.code === 200) {
+            chatHistory = result.data;
+            // 直接传递 otherUserId 而不是使用 currentChatUserId
+            renderChatMessages(chatHistory, otherUserId);
+        } else {
+            messagesContainer.innerHTML = '<p style="text-align:center;color:#9ca3af;">加载聊天记录失败</p>';
+        }
+    } catch (error) {
+        console.error('加载聊天历史失败:', error);
+        messagesContainer.innerHTML = '<p style="text-align:center;color:#9ca3af;">网络错误</p>';
+    }
+}
+
+
+// 渲染聊天消息
+function renderChatMessages(messages, userId) {
+    console.log('--- 开始渲染聊天消息 ---');
+
+    // 使用传入的 userId，如果没有则使用 currentChatUserId
+    const targetUserId = userId || currentChatUserId;
+    console.log('目标用户ID:', targetUserId);
+
+    const messagesContainer = document.getElementById(`chatMessages_${targetUserId}`);
+
+    if (!messagesContainer) {
+        console.error('❌ 渲染时找不到消息容器: chatMessages_' + targetUserId);
+        return;
+    }
+
+    console.log('✅ 找到渲染容器:', messagesContainer.id);
+
+    if (!messages || messages.length === 0) {
+        console.log('没有消息，显示空状态');
+        messagesContainer.innerHTML = '<p style="text-align:center;color:#9ca3af;padding:20px;">暂无聊天记录，开始聊天吧！</p>';
+        return;
+    }
+
+    console.log('渲染', messages.length, '条消息');
+
+    const html = messages.map((msg, index) => {
+        const isMine = msg.fromUserId === currentUser.id;
+        const time = formatTime(msg.createTime);
+
+        if (index === 0 || index === messages.length - 1) {
+            console.log(`消息[${index}]:`, {
+                from: msg.fromUserId,
+                to: msg.toUserId,
+                isMine: isMine,
+                content: msg.content?.substring(0, 20),
+                time: time
+            });
+        }
+
+        return `            <div class="message-bubble ${isMine ? 'mine' : 'other'}">
+                <div class="message-content">${escapeHtml(msg.content)}</div>
+                <div class="message-time">${time}</div>
+            </div>
+        `;
+    }).join('');
+
+    messagesContainer.innerHTML = html;
+    console.log('HTML渲染完成，内容长度:', html.length);
+
+    // 滚动到底部
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    console.log('已滚动到底部');
+    console.log('--- 渲染聊天消息结束 ---');
+}
+
+
+// 追加单条消息到聊天界面
+function appendMessageToChat(message) {
+    const messagesContainer = document.getElementById(`chatMessages_${currentChatUserId}`);
+    if (!messagesContainer) {
+        console.error('找不到消息容器: chatMessages_' + currentChatUserId);
+        return;
+    }
+
+    const isMine = message.fromUserId === currentUser.id;
+    const time = formatTime(message.timestamp || new Date().toISOString());
+
+    const messageHtml = `        <div class="message-bubble ${isMine ? 'mine' : 'other'}">
+            <div class="message-content">${escapeHtml(message.content)}</div>
+            <div class="message-time">${time}</div>
+        </div>
+    `;
+
+    messagesContainer.insertAdjacentHTML('beforeend', messageHtml);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+
+// 发送聊天消息
+window.sendChatMessage = function sendChatMessage(toUserId) {
+    if (!wsConnection || wsConnection.readyState !== WebSocket.OPEN) {
+        showToast('聊天连接未建立', 'error');
+        return;
+    }
+
+    const input = document.getElementById(`chatInput_${toUserId}`);
+    const content = input.value.trim();
+
+    if (!content) {
+        showToast('请输入消息内容', 'warning');
+        return;
+    }
+
+    const message = {
+        type: 'CHAT',
+        fromUserId: currentUser.id,
+        toUserId: toUserId,
+        content: content,
+        timestamp: new Date().toISOString()
+    };
+
+    wsConnection.send(JSON.stringify(message));
+
+    // 清空输入框
+    input.value = '';
+
+    // 立即显示在自己的聊天窗口中
+    appendMessageToChat({
+        fromUserId: currentUser.id,
+        toUserId: toUserId,
+        content: content,
+        timestamp: new Date().toISOString()
+    });
+};
+
+// 更新用户在线状态
+function updateOnlineStatus(userId, isOnline) {
+    // 可以在这里更新UI显示用户在线状态
+    const statusIndicator = document.getElementById(`online-status-${userId}`);
+    if (statusIndicator) {
+        statusIndicator.className = isOnline ? 'online' : 'offline';
+    }
+}
+
+// 在页面加载完成后初始化 WebSocket
+document.addEventListener('DOMContentLoaded', () => {
+    // ... existing code ...
+
+    // 初始化 WebSocket 连接
+    if (currentUser) {
+        initWebSocket();
+    }
+});
+
+// 在用户登录成功后初始化 WebSocket
+const originalHandleLogin = window.handleLogin;
+window.handleLogin = async function handleLogin(e) {
+    if (originalHandleLogin) {
+        await originalHandleLogin(e);
+    }
+
+    // 登录成功后初始化 WebSocket
+    if (currentUser) {
+        setTimeout(initWebSocket, 1000);
+    }
+};
